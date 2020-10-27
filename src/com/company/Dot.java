@@ -4,5 +4,5 @@ import java.util.ArrayList;
 
 public class Dot {
 
-    ArrayList adjacentDots = new ArrayList<Integer>();
+    ArrayList <Integer>adjacentDots = new ArrayList<>();
 }
