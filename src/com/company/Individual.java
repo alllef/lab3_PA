@@ -2,12 +2,13 @@ package com.company;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+
 
 public class Individual {
 
     static Individual[] population;
-    static int bestChromaticNumber = 0;
+    static int bestChromaticNumber = Integer.MAX_VALUE;
 
     ArrayList<Integer> usedColors = new ArrayList<>();
     ArrayList<Integer> colorsVector;
@@ -22,7 +23,7 @@ public class Individual {
 
     }
 
-    static void makePopulation(int populationSize) {
+    static void makePopulation(int populationSize) throws Exception {
         population = new Individual[populationSize];
 
         for (int i = 0; i < populationSize; i++) {
@@ -35,7 +36,7 @@ public class Individual {
 
     }
 
-    void randomGreedyColoring() {
+    void randomGreedyColoring() throws Exception {
 
         ArrayList<Integer> paintedDots = new ArrayList<>();
 
@@ -47,6 +48,7 @@ public class Individual {
                 chosenDot = (int) (Math.random() * Graph.size);
             } while (paintedDots.contains(chosenDot));
             paintedDots.add(chosenDot);
+
             for (Integer usedColor : usedColors) {
 
                 if (canBeColored(chosenDot, usedColor)) {
@@ -61,7 +63,12 @@ public class Individual {
 
         }
         chromaticNumber = usedColors.size();
-
+        System.out.print("number when initializing is" + chromaticNumber + " ");
+        for (Integer tmp : colorsVector) {
+            if (tmp == -5) throw new Exception();
+            System.out.print(tmp + " ");
+        }
+        System.out.println();
     }
 
 
@@ -72,27 +79,56 @@ public class Individual {
         return true;
     }
 
-    static Individual[] chooseParents() {
+    static Individual[] chooseParents() throws Exception {
+
         Individual[] parents = new Individual[2];
-        Individual bestParent = population[0];
+
+        int bestParent = 0;
 
         for (Individual tmp : population) {
-            if (tmp.chromaticNumber < bestParent.chromaticNumber) bestParent = tmp;
+            if (tmp.chromaticNumber < population[bestParent].chromaticNumber) bestParent = tmp.chromaticNumber;
         }
 
-        parents[0] = bestParent;
+        ArrayList<Integer> bestParentsList = new ArrayList<>();
+
+        for (int j = 0; j < population.length; j++) {
+            if (Individual.population[j].chromaticNumber == Individual.population[bestParent].chromaticNumber)
+                bestParentsList.add(j);
+        }
+
+        bestParent = bestParentsList.get((int) (Math.random() * bestParentsList.size()));
+        parents[0] = population[bestParent];
 
         int randomIndividual;
+
         do {
             randomIndividual = (int) (Math.random() * population.length);
+        } while (randomIndividual == bestParent);
 
-        } while (population[randomIndividual] == parents[0]);
         parents[1] = population[randomIndividual];
+        boolean test = true;
+
+        for (int i = 0; i < parents[0].colorsVector.size(); i++) {
+            int first = parents[0].colorsVector.get(i);
+            int second = parents[1].colorsVector.get(i);
+            if (first != second) {
+                test = false;
+                break;
+            }
+        }
+
+        if (test) {
+
+            chooseParents();
+        }
+
+
+
 
         return parents;
     }
 
-    void interBreed(Individual[] parents, int dotsNumber) {
+    static Individual interBreed(Individual[] parents, int dotsNumber) {
 
 
         ArrayList<Integer> splitterDots = new ArrayList<>(dotsNumber);
@@ -103,6 +139,7 @@ public class Individual {
             do {
                 dot = (int) (Math.random() * dotsNumber);
             } while (splitterDots.contains(dot));
+
             splitterDots.add(dot);
         }
 
@@ -111,145 +148,167 @@ public class Individual {
 
 
         Individual[] children = new Individual[2];
+        children[0] = new Individual();
+        children[1] = new Individual();
+
 
         for (int i = 0; i < dotsNumber; i++) {
 
-
             for (int j = splitterDots.get(i); j < splitterDots.get(i + 1); j++) {
-
-                children[i % 2].colorsVector.set(splitterDots.get(i), parents[i % 2].colorsVector.get(j));
+                //   System.out.println(parents[i % 2].colorsVector.get(j));
+                children[i % 2].colorsVector.set(j, parents[i % 2].colorsVector.get(j));
             }
 
         }
 
-        int firstParentCurrPos = 0;
-        int secondParentCurrPos = 0;
+        for (Individual tmp : children) {
+            tmp.recalculateChromaticNumber();
+        }
 
         int[] currPositions = new int[2];
 
-        for (int i = 0; i < parents[0].colorsVector.size(); i++) {
-            for (int j = 0; j < children.length; j++) {
 
-                int a = j % 2;
-                int b = (j + 1) % 2;
+        dotsloop:
+        for (int j = 0; j < children.length; j++) {
+
+            int a = j % 2;
+            int b = (j + 1) % 2;
+
+            for (int i = 0; i < parents[0].colorsVector.size(); i++) {
+
 
                 if (children[a].colorsVector.get(i) < 0) {
-                    while (!children[a].canBeColored(i, parents[b].colorsVector.get(currPositions[b]))) {
+
+                    while (currPositions[b] < parents[b].colorsVector.size() && !children[a].canBeColored(i, parents[b].colorsVector.get(currPositions[b]))) {
                         currPositions[b]++;
                     }
 
-                    if (currPositions[b] == parents[b].colorsVector.size()) {
-                        children[a].recalculateChromaticNumber();
+
+                    if (currPositions[b] < parents[b].colorsVector.size()) {
+
+                        Integer colorToSet = parents[b].colorsVector.get(currPositions[b]);
+                        children[a].colorsVector.set(i, colorToSet);
+
+                        if (!children[a].usedColors.contains(colorToSet)) {
+                            children[a].usedColors.add(colorToSet);
+                            children[a].chromaticNumber++;
+                        }
+
+                    } else {
 
                         outerloop:
                         for (int k = i; k < children[a].colorsVector.size(); k++) {
-                            for (Integer usedColor : children[b].usedColors) {
+
+                            for (Integer usedColor : children[a].usedColors) {
+
                                 if (children[a].canBeColored(k, usedColor)) {
                                     children[a].colorsVector.set(k, usedColor);
                                     continue outerloop;
                                 }
+
                             }
+
                             int notUsedColor;
                             int counter = 0;
 
                             do {
                                 notUsedColor = Graph.colors[counter];
                                 counter++;
-                            } while (children[a].colorsVector.contains(notUsedColor));
-                            children[a].colorsVector.add(notUsedColor);
-                            children[a].chromaticNumber++;
-                        }
+                            } while (children[a].usedColors.contains(notUsedColor));
 
+                            children[a].usedColors.add(notUsedColor);
+                            children[a].chromaticNumber++;
+                            children[a].colorsVector.set(k, notUsedColor);
+                        }
+                        continue dotsloop;
                     }
 
                 }
             }
         }
+        // System.out.println("somethingkkk " + children[0].usedColors.size());
+        if (children[0].chromaticNumber < children[1].chromaticNumber) return children[0];
+        else if (children[0].chromaticNumber > children[1].chromaticNumber) return children[1];
+        else return children[(int) (Math.random() * children.length)];
+
     }
 
-
-  /*      for (int i = 0; i < secondParent.colorsVector.size(); i++) {
-
-            if (firstChild.colorsVector.get(i) < 0) {
-
-                while (!firstChild.canBeColored(i, secondParent.colorsVector.get(secondParentCurrPos))/*&&secondParentCurrPos!=secondParent.colorsVector.size()) {
-                    secondParentCurrPos++;
-                }
-
-                if (secondParentCurrPos == secondParent.colorsVector.size()) {
-                    firstChild.recalculateChromaticNumber();
-
-                    outerloop:
-                    for (int j = i; j < firstChild.colorsVector.size(); j++) {
-                        for (Integer usedColor : usedColors) {
-
-                            if (canBeColored(j, usedColor)) {
-                                colorsVector.set(j, usedColor);
-                                continue outerloop;
-                            }
-                        }
-
-                        int notUsedColor;
-                        int counter = 0;
-
-                        do {
-                            notUsedColor = Graph.colors[counter];
-                        } while (firstChild.colorsVector.contains(notUsedColor));
-                        firstChild.colorsVector.add(notUsedColor);
-                        firstChild.chromaticNumber++;
-                    }
-
-                }
-
-            }
-
-            if (secondChild.colorsVector.get(i) < 0) {
-
-                while (!secondChild.canBeColored(i, firstParent.colorsVector.get(firstParentCurrPos))) {
-                    firstParentCurrPos++;
-                }
-
-            }
-
-        }*/
-}
 
     int recalculateChromaticNumber() {
         usedColors.clear();
 
         for (Integer tmp : colorsVector) {
-            if (!usedColors.contains(tmp)) usedColors.add(tmp);
+            if (!usedColors.contains(tmp) && tmp != -5) usedColors.add(tmp);
         }
 
-        usedColors.remove(-5);
+
         chromaticNumber = usedColors.size();
         return chromaticNumber;
     }
 
-    void makeLocalImprovement() {
+    void makeLeastImprovement() {
 
-        for (Integer dot : colorsVector) {
+        HashMap<Integer, Integer> colorFrequencies = new HashMap<>();
 
-            if (dot == (int) usedColors.get(usedColors.size() - 1)) {
+        for (Integer color : usedColors) {
+            colorFrequencies.put(color, 0);
+        }
+
+        for (Integer color : colorsVector) {
+            Integer tmp = colorFrequencies.get(color);
+            if (tmp == null) {
+                System.out.println("color is" + color);
+                for (Integer tmpColor : usedColors) {
+                    System.out.println(tmpColor);
+                }
+            }
+            colorFrequencies.put(color, ++tmp);
+        }
+
+        int minFrequencyColor = usedColors.get(0);
+        System.out.println(colorFrequencies.get(minFrequencyColor));
+
+        for (Integer tmp : colorFrequencies.keySet()) {
+            if (colorFrequencies.get(tmp) < colorFrequencies.get(minFrequencyColor)) minFrequencyColor = tmp;
+        }
+
+
+        for (Integer color : colorsVector) {
+
+            if (color == minFrequencyColor) {
                 for (Integer usedColor : usedColors) {
 
-                    if (canBeColored(dot, usedColor)) {
-
-                        colorsVector.set(dot, usedColor);
+                    if (usedColor != minFrequencyColor && canBeColored(color, usedColor)) {
+                        System.out.print("whyyyyy ");
+                        System.out.println(colorFrequencies.get(minFrequencyColor));
+                        colorsVector.set(color, usedColor);
+                        recalculateChromaticNumber();
                         return;
                     }
+
                 }
+
                 return;
             }
 
         }
     }
 
-    void makeOtherLocalImprovement() {
-        // int bestDo
-        for (Dot dot : Graph.dotsList) {
+    void makeDegreeImprovement() {
+        int bestDot = 0;
 
+        for (int i = 0; i < Graph.dotsList.length; i++) {
+            if (Graph.dotsList[i].adjacentDots.size() > Graph.dotsList[bestDot].adjacentDots.size()) bestDot = i;
         }
+
+        for (Integer color : usedColors) {
+            if (canBeColored(bestDot, color)) {
+                colorsVector.set(bestDot, color);
+                recalculateChromaticNumber();
+                break;
+            }
+        }
+
     }
 
     boolean mutateByChangingColor() {
@@ -266,6 +325,7 @@ public class Individual {
 
             if (canBeColored(randomDot, randomColor)) {
                 colorsVector.set(randomDot, randomColor);
+                recalculateChromaticNumber();
                 return true;
             }
 
@@ -274,6 +334,7 @@ public class Individual {
     }
 
     boolean mutateByColorSwap() {
+        //  System.out.println("somethingkkk " + usedColors.size());
         double probability = 0.3;
 
         if (Math.random() <= probability) {
@@ -298,19 +359,6 @@ public class Individual {
         return false;
     }
 
-    public static void main(String[] args) {
-
-        ArrayList<Integer> testSubList = new ArrayList<>();
-
-        for (int i = 0; i < 20; i++) {
-            testSubList.add(i);
-        }
-        System.out.println(testSubList.get(0));
-        ArrayList<Integer> subList = new ArrayList<>();
-        subList.add(testSubList.get(0));
-        subList.set(0, 27);
-        System.out.println(subList.get(0) + " " + testSubList.get(0));
-    }
 }
 
 
